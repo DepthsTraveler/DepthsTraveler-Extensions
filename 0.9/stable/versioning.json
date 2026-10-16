@@ -1,0 +1,109 @@
+{
+  "buildTime": "2026-10-16T04:20:13.000Z",
+  "builtWith": {
+    "toolchain": "1.0.0-alpha.92",
+    "types": "1.0.0-alpha.92"
+  },
+  "repository": {
+    "name": "DepthsTraveler's Extensions",
+    "description": "Paperback extensions collected from KakarotExtension and Sinon's Extensions"
+  },
+  "sources": [
+    {
+      "name": "LeagueOfComicGeeks",
+      "description": "Extension that integrates with leagueofcomicgeeks.com for tracking and collection management.",
+      "version": "1.1.2",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "capabilities": [
+        32,
+        4,
+        64,
+        2,
+        16
+      ],
+      "badges": [
+        {
+          "label": "Tracker",
+          "textColor": "#FFFFFF",
+          "backgroundColor": "#1E90FF"
+        },
+        {
+          "label": "Western Comics",
+          "textColor": "#FFFFFF",
+          "backgroundColor": "#C71585"
+        }
+      ],
+      "developers": [
+        {
+          "name": "Karrot"
+        }
+      ],
+      "id": "LeagueOfComicGeeks"
+    },
+    {
+      "name": "NovelBuddy",
+      "description": "Extension that pulls content from NovelBuddy.",
+      "version": "1.0.5",
+      "icon": "icon.png",
+      "contentRating": "SAFE",
+      "capabilities": [
+        4,
+        64,
+        1
+      ],
+      "badges": [
+        {
+          "label": "Novel",
+          "textColor": "#ffffff",
+          "backgroundColor": "#3baf4b"
+        }
+      ],
+      "developers": [
+        {
+          "name": "Catta1997",
+          "github": "https://github.com/Catta1997"
+        }
+      ],
+      "id": "NovelBuddy"
+    },
+    {
+      "name": "ReadComicsOnlineRu",
+      "description": "Extension that pulls content from readcomicsonline.ru.",
+      "version": "1.2",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [
+        {
+          "label": "Aggregator",
+          "textColor": "#FFFFFF",
+          "backgroundColor": "#800080"
+        },
+        {
+          "label": "Mature",
+          "textColor": "#FFFFFF",
+          "backgroundColor": "#800080"
+        },
+        {
+          "label": "Western Comics",
+          "textColor": "#FFFFFF",
+          "backgroundColor": "#C71585"
+        }
+      ],
+      "capabilities": [
+        4,
+        64,
+        1,
+        16
+      ],
+      "developers": [
+        {
+          "name": "Karrot"
+        }
+      ],
+      "id": "ReadComicsOnline"
+    }
+  ]
+}
