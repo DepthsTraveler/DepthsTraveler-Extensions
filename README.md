@@ -6,7 +6,7 @@ Paperback extensions collected from other repositories into one install link. Ea
 
 Add this repository in Paperback:
 
-https://depthstraveler.github.io/Paperback-Extensions/0.9/stable/
+https://depthstraveler.github.io/DepthsTraveler-Extensions/0.9/stable/
 
 ## Extensions
 
