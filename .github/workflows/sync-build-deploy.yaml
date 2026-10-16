@@ -1,0 +1,61 @@
+name: Sync, Build and Deploy
+
+on:
+  # Runs when this repo changes (e.g. sources.json is edited).
+  push:
+    branches:
+      - "0.9/stable"
+  # Picks up changes made in the source forks once a day.
+  schedule:
+    - cron: "17 9 * * *"
+  # "Run workflow" button on the Actions tab, for picking up a fix right away.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  sync-build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Sync extensions from source repos
+        run: node scripts/sync.mjs
+
+      - name: Commit synced changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src
+          if git diff --cached --quiet; then
+            echo "No changes from source repos."
+          else
+            git commit -m "chore: sync extensions from source repos"
+            git push
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bundle extensions
+        run: npm run bundle
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: bundles
+          destination_dir: 0.9/stable
+          keep_files: false

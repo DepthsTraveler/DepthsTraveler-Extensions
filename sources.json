@@ -1,0 +1,20 @@
+{
+  "sources": [
+    {
+      "name": "KakarotExtension",
+      "repo": "https://github.com/DepthsTraveler/KakarotExtension",
+      "branch": "0.9/testing",
+      "upstream": "https://github.com/karrot0/KakarotExtension",
+      "license": "MIT",
+      "paths": ["src/ReadComicsOnline", "src/LeagueOfComicGeeks"]
+    },
+    {
+      "name": "Sinon-Paperback-Extensions",
+      "repo": "https://github.com/DepthsTraveler/Sinon-Paperback-Extensions",
+      "branch": "0.9/stable",
+      "upstream": "https://github.com/Catta1997/Sinon-Paperback-Extensions",
+      "license": "GPL-3.0",
+      "paths": ["src/NovelBuddy", "src/novelUtils.ts"]
+    }
+  ]
+}
