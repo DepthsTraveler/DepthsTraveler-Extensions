@@ -1,5 +1,34 @@
 import type { BooruPost } from "./models";
 
+const EXCLUDED_TAGS = new Set([
+  "toddlercon",
+  "toddler",
+  "child",
+  "children",
+  "kid",
+  "young",
+  "younger",
+  "underage",
+  "minor",
+  "preteen",
+  "teenager",
+  "infant",
+  "baby",
+  "aged_down",
+  "age_regression",
+  "school_uniform_child",
+]);
+
+/** Tags most likely to match, sent as exclusions where a site's tag limit allows. */
+export const SERVER_EXCLUSIONS = [
+  "toddlercon",
+  "young",
+  "child",
+  "underage",
+  "aged_down",
+];
+
+
 function normalize(tag: string): string {
   return tag.trim().toLowerCase().replace(/^-/, "").replace(/\s+/g, "_");
 }
