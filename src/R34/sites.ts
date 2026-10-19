@@ -119,7 +119,7 @@ function dapiPost(site: SiteId, post: DapiPost): BooruPost | undefined {
   };
 }
 
-function dapiSite(id: "rule34xxx" | "gelbooru", name: string, base: string, gifTag: string): Site {
+function dapiSite(id: "rule34xxx" | "gelbooru", name: string, base: string, gifTags: string[]): Site {
   const site: Site = {
     id,
     name,
@@ -127,7 +127,7 @@ function dapiSite(id: "rule34xxx" | "gelbooru", name: string, base: string, gifT
     sorts: ["new", "score", "gif"],
     needsKey: true,
     async search(tags, page, sort) {
-      const extra = sort === "score" ? ["sort:score:desc"] : sort === "gif" ? [gifTag] : [];
+      const extra = sort === "score" ? ["sort:score:desc", "-video"] : sort === "gif" ? gifTags : [];
       checkTagLimit(site, tags, extra);
       const query = withExclusions(tags, extra, site.tagLimit);
       const posts = await dapiRequest(`limit=${PAGE_SIZE}&pid=${page - 1}&tags=${encodeURIComponent(query.join(" "))}`);
@@ -349,10 +349,10 @@ const paheal: Site = {
 };
 
 export const SITES: Site[] = [
-  dapiSite("rule34xxx", "rule34.xxx", "https://api.rule34.xxx", "gif"),
+  dapiSite("rule34xxx", "rule34.xxx", "https://api.rule34.xxx", ["gif", "-video"]),
   e621,
   danbooru,
-  dapiSite("gelbooru", "Gelbooru", "https://gelbooru.com", "animated_gif"),
+  dapiSite("gelbooru", "Gelbooru", "https://gelbooru.com", ["animated_gif", "-video"]),
   paheal,
 ];
 
