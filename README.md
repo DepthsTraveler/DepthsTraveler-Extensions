@@ -14,13 +14,14 @@ https://depthstraveler.github.io/DepthsTraveler-Extensions/0.9/stable/
 | --- | --- | --- | --- |
 | LeagueOfComicGeeks | [DepthsTraveler/KakarotExtension](https://github.com/DepthsTraveler/KakarotExtension) | [karrot0/KakarotExtension](https://github.com/karrot0/KakarotExtension) | MIT |
 | ReadComicsOnline | [DepthsTraveler/KakarotExtension](https://github.com/DepthsTraveler/KakarotExtension) | [karrot0/KakarotExtension](https://github.com/karrot0/KakarotExtension) | MIT |
+| R34 | This repository | DepthsTraveler | GPL-3.0 |
 | NovelBuddy | [DepthsTraveler/Sinon-Paperback-Extensions](https://github.com/DepthsTraveler/Sinon-Paperback-Extensions) | [Catta1997/Sinon-Paperback-Extensions](https://github.com/Catta1997/Sinon-Paperback-Extensions) | GPL-3.0 |
 
 ## How it works
 
 `sources.json` lists which folders to copy from which fork and branch. The workflow in `.github/workflows/sync-build-deploy.yaml` copies them into `src/`, builds, and publishes the install link. It runs once a day, whenever this repository changes, and on demand from the Actions tab with "Run workflow".
 
-Edit extensions in their fork, not here; the next sync overwrites `src/`.
+Edit synced extensions in their fork, not here; the next sync overwrites the folders listed in `sources.json`. R34 is written in this repository and is not synced, so edit it here.
 
 To add an extension, add its folder (and any shared files it imports) to the matching entry in `sources.json`, or add a new entry for a new fork.
 
