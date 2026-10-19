@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-10-19T08:39:36.562Z",
+  "buildTime": "2026-10-19T08:46:19.572Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.92",
     "types": "1.0.0-alpha.92"
@@ -71,7 +71,7 @@
     {
       "name": "R34",
       "description": "Booru image sites from r34.app: rule34.xxx, e621, Danbooru, Gelbooru and rule34.paheal.net.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "icon": "icon.png",
       "language": "en",
       "contentRating": "ADULT",
