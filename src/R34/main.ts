@@ -18,9 +18,23 @@ import { isAllowed, parseTagList, searchAsksForExcluded } from "./filter";
 import type { BooruPost, R34Metadata } from "./models";
 import type pbconfig from "./pbconfig";
 import { getCredentials, getHiddenTagsText, getHomeSites, R34SettingsForm } from "./settings";
+import { R34Interceptor } from "./interceptor";
 import { getSite, SITES, type Site, type SortOrder } from "./sites";
 
-const SORT_LABELS: Record<SortOrder, string> = { new: "Newest", score: "Popular" };
+const SORT_LABELS: Record<SortOrder, string> = { new: "Newest", score: "Popular", gif: "GIFs" };
+/** Home rows per site, in this order. */
+const HOME_ORDER: SortOrder[] = ["score", "new", "gif"];
+const HOME_TITLES: Record<SortOrder, string> = { score: "Popular", new: "Latest", gif: "GIFs" };
+
+/** Paperback IDs allow letters, digits and ._-@()[]%?#+=/&: only. */
+function sortId(site: Site, sort: SortOrder): string {
+  return `${site.id}-${sort}`;
+}
+
+function parseSortId(id: string): [string, SortOrder] {
+  const [siteId, sort] = id.split("-");
+  return [siteId ?? "", (sort ?? "new") as SortOrder];
+}
 
 function isUsable(site: Site): boolean {
   return !site.needsKey || !!getCredentials(site.id as "rule34xxx" | "gelbooru");
@@ -56,7 +70,11 @@ function decodeId(mangaId: string): { site: Site; postId: string } {
 }
 
 export class R34Extension implements ExtensionImpl<typeof pbconfig> {
-  async initialise(): Promise<void> {}
+  private interceptor = new R34Interceptor("r34-images");
+
+  async initialise(): Promise<void> {
+    this.interceptor.registerInterceptor();
+  }
 
   private hiddenTags(): Set<string> {
     return parseTagList(getHiddenTagsText());
@@ -82,9 +100,9 @@ export class R34Extension implements ExtensionImpl<typeof pbconfig> {
   async getDiscoverSections(): Promise<DiscoverSection[]> {
     const home = new Set(getHomeSites());
     return SITES.filter((site) => home.has(site.id) && isUsable(site)).flatMap((site) =>
-      [...site.sorts].reverse().map((sort) => ({
-        id: `${site.id}|${sort}`,
-        title: `${site.name}: ${sort === "score" ? "Popular" : "Latest"}`,
+      HOME_ORDER.filter((sort) => site.sorts.includes(sort)).map((sort) => ({
+        id: sortId(site, sort),
+        title: `${site.name}: ${HOME_TITLES[sort]}`,
         type: DiscoverSectionType.simpleCarousel,
       })),
     );
@@ -94,7 +112,7 @@ export class R34Extension implements ExtensionImpl<typeof pbconfig> {
     section: DiscoverSection,
     metadata: R34Metadata | undefined,
   ): Promise<PagedResults<DiscoverSectionItem>> {
-    const [siteId, sort] = section.id.split("|") as [string, SortOrder];
+    const [siteId, sort] = parseSortId(section.id);
     const site = getSite(siteId);
     const page = metadata?.page ?? 1;
     const result = await site.search([], page, sort);
@@ -115,7 +133,7 @@ export class R34Extension implements ExtensionImpl<typeof pbconfig> {
 
   async getSortingOptions(): Promise<SortingOption[]> {
     return SITES.filter(isUsable).flatMap((site) =>
-      site.sorts.map((sort) => ({ id: `${site.id}|${sort}`, label: `${site.name}: ${SORT_LABELS[sort]}` })),
+      site.sorts.map((sort) => ({ id: sortId(site, sort), label: `${site.name}: ${SORT_LABELS[sort]}` })),
     );
   }
 
@@ -125,7 +143,7 @@ export class R34Extension implements ExtensionImpl<typeof pbconfig> {
     sortingOption: SortingOption | undefined,
   ): Promise<PagedResults<SearchResultItem>> {
     const fallback = SITES.find(isUsable) ?? getSite("e621");
-    const [siteId, sort] = (sortingOption?.id || `${fallback.id}|new`).split("|") as [string, SortOrder];
+    const [siteId, sort] = parseSortId(sortingOption?.id || sortId(fallback, "new"));
     const site = getSite(siteId);
     const tags = (query.title ?? "").trim().split(/\s+/).filter(Boolean);
     if (searchAsksForExcluded(tags)) return { items: [] };

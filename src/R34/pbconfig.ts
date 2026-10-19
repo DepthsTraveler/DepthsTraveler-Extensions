@@ -3,7 +3,7 @@ import { ContentRating, SourceIntents, type ExtensionInfo } from "@paperback/typ
 export default {
   name: "R34",
   description: "Booru image sites from r34.app: rule34.xxx, e621, Danbooru, Gelbooru and rule34.paheal.net.",
-  version: "1.0.0",
+  version: "1.1.0",
   icon: "icon.png",
   language: "en",
   contentRating: ContentRating.ADULT,

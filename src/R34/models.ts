@@ -15,6 +15,8 @@ export interface BooruPost {
   copyrights: string[];
   score: number;
   rating: ContentRating;
+  /** True for GIF files. */
+  isGif: boolean;
 }
 
 export interface PostPage {

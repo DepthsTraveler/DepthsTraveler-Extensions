@@ -9,7 +9,7 @@ export const PAGE_SIZE = 30;
 const USER_AGENT = "R34-Paperback/1.0 (by DepthsTraveler on GitHub)";
 const IMAGE_FILE = /\.(jpe?g|png|gif|webp|avif)(\?|$)/i;
 
-export type SortOrder = "new" | "score";
+export type SortOrder = "new" | "score" | "gif";
 
 export interface Site {
   id: SiteId;
@@ -62,6 +62,13 @@ function isImage(url: string | null | undefined): url is string {
   return !!url && IMAGE_FILE.test(url);
 }
 
+const GIF_FILE = /\.gif(\?|$)/i;
+
+/** For the GIFs sort: keep only real GIF files, since some sites' GIF tags are loose. */
+function onlyGifs(posts: BooruPost[], sort: SortOrder): BooruPost[] {
+  return sort === "gif" ? posts.filter((p) => p.isGif) : posts;
+}
+
 function splitTags(text: string | null | undefined): string[] {
   return (text ?? "").split(/\s+/).filter(Boolean);
 }
@@ -108,23 +115,27 @@ function dapiPost(site: SiteId, post: DapiPost): BooruPost | undefined {
     copyrights: [],
     score: Number(post.score) || 0,
     rating: ratingFromLetter(post.rating),
+    isGif: GIF_FILE.test(post.file_url),
   };
 }
 
-function dapiSite(id: "rule34xxx" | "gelbooru", name: string, base: string): Site {
+function dapiSite(id: "rule34xxx" | "gelbooru", name: string, base: string, gifTag: string): Site {
   const site: Site = {
     id,
     name,
     tagLimit: 40,
-    sorts: ["new", "score"],
+    sorts: ["new", "score", "gif"],
     needsKey: true,
     async search(tags, page, sort) {
-      const extra = sort === "score" ? ["sort:score:desc"] : [];
+      const extra = sort === "score" ? ["sort:score:desc"] : sort === "gif" ? [gifTag] : [];
       checkTagLimit(site, tags, extra);
       const query = withExclusions(tags, extra, site.tagLimit);
       const posts = await dapiRequest(`limit=${PAGE_SIZE}&pid=${page - 1}&tags=${encodeURIComponent(query.join(" "))}`);
       return {
-        posts: posts.map((p) => dapiPost(id, p)).filter((p): p is BooruPost => !!p),
+        posts: onlyGifs(
+          posts.map((p) => dapiPost(id, p)).filter((p): p is BooruPost => !!p),
+          sort,
+        ),
         hasMore: posts.length >= PAGE_SIZE,
       };
     },
@@ -179,6 +190,7 @@ function e621Post(post: E621Post): BooruPost | undefined {
     copyrights: tags.copyright ?? [],
     score: post.score?.total ?? 0,
     rating: ratingFromLetter(post.rating),
+    isGif: GIF_FILE.test(post.file.url),
   };
 }
 
@@ -186,20 +198,28 @@ const e621: Site = {
   id: "e621",
   name: "e621",
   tagLimit: 40,
-  sorts: ["new", "score"],
+  sorts: ["new", "score", "gif"],
   needsKey: false,
   async search(tags, page, sort) {
     // Top-scored posts are mostly videos, which Paperback can't show, so
     // videos are left out on e621's side. With no search tags (the home
     // page), Popular means this week's top posts.
-    const extra = sort === "score" ? ["order:score", ...(tags.length === 0 ? ["date:week"] : [])] : [];
+    const extra =
+      sort === "score"
+        ? ["order:score", ...(tags.length === 0 ? ["date:week"] : [])]
+        : sort === "gif"
+          ? ["type:gif"]
+          : [];
     checkTagLimit(e621, tags, extra);
     const query = withExclusions(tags, [...extra, "-type:webm", "-type:mp4", "-type:swf"], e621.tagLimit);
     const { body } = await get(
       `https://e621.net/posts.json?limit=${PAGE_SIZE}&page=${page}&tags=${encodeURIComponent(query.join(" "))}`,
     );
     const posts = parseJson<{ posts: E621Post[] }>(body, "e621")?.posts ?? [];
-    return { posts: posts.map(e621Post).filter((p): p is BooruPost => !!p), hasMore: posts.length >= PAGE_SIZE };
+    return {
+      posts: onlyGifs(posts.map(e621Post).filter((p): p is BooruPost => !!p), sort),
+      hasMore: posts.length >= PAGE_SIZE,
+    };
   },
   async getPost(id) {
     const { status, body } = await get(`https://e621.net/posts/${encodeURIComponent(id)}.json`);
@@ -239,6 +259,7 @@ function danbooruPost(post: DanbooruPost): BooruPost | undefined {
     copyrights: splitTags(post.tag_string_copyright),
     score: post.score ?? 0,
     rating: ratingFromLetter(post.rating),
+    isGif: GIF_FILE.test(post.file_url),
   };
 }
 
@@ -246,12 +267,12 @@ const danbooru: Site = {
   id: "danbooru",
   name: "Danbooru",
   tagLimit: 2,
-  sorts: ["new", "score"],
+  sorts: ["new", "score", "gif"],
   needsKey: false,
   async search(tags, page, sort) {
     // order:rank is Danbooru's "popular right now"; order:score across the
     // whole site times out on their database.
-    const extra = sort === "score" ? ["order:rank"] : [];
+    const extra = sort === "score" ? ["order:rank"] : sort === "gif" ? ["filetype:gif"] : [];
     checkTagLimit(danbooru, tags, extra);
     const query = [...tags, ...extra];
     const { body } = await get(
@@ -260,7 +281,10 @@ const danbooru: Site = {
     const json = parseJson<DanbooruPost[] | { message?: string }>(body, "Danbooru");
     if (json && !Array.isArray(json)) throw new Error(`Danbooru: ${json.message ?? "search failed"}`);
     const posts = json ?? [];
-    return { posts: posts.map(danbooruPost).filter((p): p is BooruPost => !!p), hasMore: posts.length >= PAGE_SIZE };
+    return {
+      posts: onlyGifs(posts.map(danbooruPost).filter((p): p is BooruPost => !!p), sort),
+      hasMore: posts.length >= PAGE_SIZE,
+    };
   },
   async getPost(id) {
     const { status, body } = await get(`https://danbooru.donmai.us/posts/${encodeURIComponent(id)}.json`);
@@ -295,6 +319,7 @@ function pahealPosts(xml: string): BooruPost[] {
         copyrights: [],
         score: Number(a.score) || 0,
         rating: ContentRating.ADULT,
+        isGif: GIF_FILE.test(a.file_name ?? ""),
       };
     })
     .filter((p): p is BooruPost => !!p && !!p.id);
@@ -304,15 +329,16 @@ const paheal: Site = {
   id: "paheal",
   name: "rule34.paheal.net",
   tagLimit: 3,
-  sorts: ["new"],
+  sorts: ["new", "gif"],
   needsKey: false,
-  async search(tags, page) {
-    checkTagLimit(paheal, tags, []);
-    const query = withExclusions(tags, [], paheal.tagLimit);
+  async search(tags, page, sort) {
+    const extra = sort === "gif" ? ["gif"] : [];
+    checkTagLimit(paheal, tags, extra);
+    const query = withExclusions(tags, extra, paheal.tagLimit);
     const { body } = await get(
       `https://rule34.paheal.net/api/danbooru/find_posts?limit=${PAGE_SIZE}&page=${page}&tags=${encodeURIComponent(query.join(" "))}`,
     );
-    const posts = pahealPosts(body);
+    const posts = onlyGifs(pahealPosts(body), sort);
     const count = Number(body.match(/<posts[^>]*count='(\d+)'/)?.[1] ?? 0);
     return { posts, hasMore: page * PAGE_SIZE < count };
   },
@@ -323,10 +349,10 @@ const paheal: Site = {
 };
 
 export const SITES: Site[] = [
-  dapiSite("rule34xxx", "rule34.xxx", "https://api.rule34.xxx"),
+  dapiSite("rule34xxx", "rule34.xxx", "https://api.rule34.xxx", "gif"),
   e621,
   danbooru,
-  dapiSite("gelbooru", "Gelbooru", "https://gelbooru.com"),
+  dapiSite("gelbooru", "Gelbooru", "https://gelbooru.com", "animated_gif"),
   paheal,
 ];
 
