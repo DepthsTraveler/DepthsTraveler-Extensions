@@ -1,8 +1,12 @@
-import { Form, InputRow, LabelRow, Section, SelectRow, type ListSectionElement } from "@paperback/types";
+import { Form, InputRow, LabelRow, Section, SelectRow, StepperRow, type ListSectionElement } from "@paperback/types";
 import type { SiteId } from "./models";
 
 const HOME_SITES_KEY = "r34_home_sites";
 const HIDDEN_TAGS_KEY = "r34_hidden_tags";
+const ALBUM_PAGES_KEY = "r34_album_pages";
+
+/** Posts are fetched 30 at a time; an album holds this many batches. */
+export const DEFAULT_ALBUM_PAGES = 10;
 
 const SITE_NAMES: Record<SiteId, string> = {
   rule34xxx: "rule34.xxx",
@@ -40,6 +44,11 @@ export function getHomeSites(): SiteId[] {
 
 export function getHiddenTagsText(): string {
   return (Application.getState(HIDDEN_TAGS_KEY) as string | undefined) ?? "";
+}
+
+export function getAlbumPages(): number {
+  const stored = Number(Application.getState(ALBUM_PAGES_KEY));
+  return stored >= 1 && stored <= 30 ? stored : DEFAULT_ALBUM_PAGES;
 }
 
 export class R34SettingsForm extends Form {
@@ -84,6 +93,26 @@ export class R34SettingsForm extends Form {
           }),
         ],
       ),
+      Section(
+        {
+          id: "albums",
+          header: "Albums",
+          footer:
+            "Searching tags shows an Album entry first. Add it to your library and library updates add new posts, one chapter per day. Bigger albums take longer to update.",
+        },
+        [
+          StepperRow("album-pages", {
+            title: "Newest posts kept",
+            subtitle: `${getAlbumPages() * 30} posts`,
+            value: getAlbumPages(),
+            minValue: 1,
+            maxValue: 30,
+            stepValue: 1,
+            loopOver: false,
+            onValueChange: Application.Selector(this as R34SettingsForm, "onAlbumPagesChange"),
+          }),
+        ],
+      ),
       Section("about", [
         LabelRow("about", {
           title: "Videos are skipped",
@@ -118,6 +147,11 @@ export class R34SettingsForm extends Form {
 
   async onHomeSitesChange(value: string[]): Promise<void> {
     Application.setState(value, HOME_SITES_KEY);
+  }
+
+  async onAlbumPagesChange(value: number): Promise<void> {
+    Application.setState(value, ALBUM_PAGES_KEY);
+    this.reloadForm();
   }
 
   async onHiddenTagsChange(value: string): Promise<void> {

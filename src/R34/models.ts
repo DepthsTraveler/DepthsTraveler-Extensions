@@ -17,6 +17,8 @@ export interface BooruPost {
   rating: ContentRating;
   /** True for GIF files. */
   isGif: boolean;
+  /** Upload time in ms since 1970, when the site gives one. */
+  createdAt?: number;
 }
 
 export interface PostPage {

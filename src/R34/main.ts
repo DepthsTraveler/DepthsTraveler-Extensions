@@ -14,6 +14,18 @@ import {
   type SourceManga,
   type TagSection,
 } from "@paperback/types";
+import {
+  type Album,
+  albumId,
+  albumTitle,
+  fetchAlbumPosts,
+  formatDay,
+  groupByDay,
+  isAlbumId,
+  loadAlbumDay,
+  parseAlbumId,
+  saveAlbumDays,
+} from "./album";
 import { isAllowed, parseTagList, searchAsksForExcluded } from "./filter";
 import type { BooruPost, R34Metadata } from "./models";
 import type pbconfig from "./pbconfig";
@@ -150,21 +162,85 @@ export class R34Extension implements ExtensionImpl<typeof pbconfig> {
 
     const page = metadata?.page ?? 1;
     const result = await site.search(tags, page, sort);
+    const posts = this.visible(result.posts);
+    const items: SearchResultItem[] = posts.map((post) => ({
+      mangaId: encodeId(post),
+      imageUrl: post.previewUrl,
+      title: postTitle(post, site.name),
+      subtitle: `★ ${post.score}`,
+      contentRating: post.rating,
+    }));
+    // First result: the whole search as an album that can go in the library.
+    if (page === 1 && tags.length > 0 && posts[0]) {
+      const album: Album = { site, sort: sort === "gif" ? "gif" : "new", tags };
+      items.unshift({
+        mangaId: albumId(site, album.sort, tags),
+        imageUrl: posts[0].previewUrl,
+        title: albumTitle(album),
+        subtitle: "Every post in one place",
+        contentRating: ContentRating.ADULT,
+      });
+    }
+    return { items, metadata: result.hasMore ? { page: page + 1 } : undefined };
+  }
+
+  // Albums ----------------------------------------------------------------------
+
+  private async albumDetails(mangaId: string): Promise<SourceManga> {
+    const album = parseAlbumId(mangaId);
+    if (searchAsksForExcluded(album.tags)) throw new Error("This album isn't available.");
+    const first = this.visible((await album.site.search(album.tags, 1, album.sort)).posts)[0];
     return {
-      items: this.visible(result.posts).map((post) => ({
-        mangaId: encodeId(post),
-        imageUrl: post.previewUrl,
-        title: postTitle(post, site.name),
-        subtitle: `★ ${post.score}`,
-        contentRating: post.rating,
-      })),
-      metadata: result.hasMore ? { page: page + 1 } : undefined,
+      mangaId,
+      mangaInfo: {
+        primaryTitle: albumTitle(album),
+        secondaryTitles: [],
+        thumbnailUrl: first?.previewUrl ?? "",
+        synopsis: `Posts from ${album.site.name} tagged ${album.tags.join(" ")}${album.sort === "gif" ? ", GIFs only" : ""}. One chapter per upload day. Add it to your library and library updates bring in new posts.`,
+        contentRating: ContentRating.ADULT,
+        status: "Ongoing",
+        tagGroups: [
+          {
+            id: "search",
+            title: "Search",
+            tags: album.tags.map((t) => ({ id: tagId(t), title: pretty(t) })),
+          },
+        ],
+      },
     };
+  }
+
+  private async albumChapters(sourceManga: SourceManga): Promise<Chapter[]> {
+    const album = parseAlbumId(sourceManga.mangaId);
+    if (searchAsksForExcluded(album.tags)) return [];
+    const days = groupByDay(await fetchAlbumPosts(album, (p) => this.visible(p)));
+    saveAlbumDays(sourceManga.mangaId, days);
+    return days.map((d, i) => ({
+      chapterId: d.day,
+      sourceManga,
+      title: `${formatDay(d.day)} (${d.pages.length} post${d.pages.length === 1 ? "" : "s"})`,
+      chapNum: i + 1,
+      langCode: "en",
+      publishDate: new Date(d.time),
+      sortingIndex: i,
+    }));
+  }
+
+  private async albumChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
+    const mangaId = chapter.sourceManga.mangaId;
+    let pages = loadAlbumDay(mangaId, chapter.chapterId);
+    if (!pages) {
+      await this.albumChapters(chapter.sourceManga);
+      pages = loadAlbumDay(mangaId, chapter.chapterId);
+    }
+    if (!pages?.length) throw new Error("This day's posts are no longer in the album. Refresh the album.");
+    return { id: chapter.chapterId, mangaId, pages };
   }
 
   // Posts -----------------------------------------------------------------------
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
+    if (isAlbumId(mangaId)) return this.albumDetails(mangaId);
     const { site, post } = await this.loadPost(mangaId);
     const named = new Set([...post.artists, ...post.characters, ...post.copyrights]);
     const groups: [string, string, string[]][] = [
@@ -198,6 +274,7 @@ export class R34Extension implements ExtensionImpl<typeof pbconfig> {
   }
 
   async getChapters(sourceManga: SourceManga): Promise<Chapter[]> {
+    if (isAlbumId(sourceManga.mangaId)) return this.albumChapters(sourceManga);
     const { postId } = decodeId(sourceManga.mangaId);
     return [
       {
@@ -211,6 +288,7 @@ export class R34Extension implements ExtensionImpl<typeof pbconfig> {
   }
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
+    if (isAlbumId(chapter.sourceManga.mangaId)) return this.albumChapterDetails(chapter);
     const { post } = await this.loadPost(chapter.sourceManga.mangaId);
     return { id: chapter.chapterId, mangaId: chapter.sourceManga.mangaId, pages: [post.fileUrl] };
   }

@@ -69,6 +69,38 @@ function onlyGifs(posts: BooruPost[], sort: SortOrder): BooruPost[] {
   return sort === "gif" ? posts.filter((p) => p.isGif) : posts;
 }
 
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+/**
+ * Parses the dates the sites send: ISO (e621, Danbooru), "Mon Oct 19 10:47:25 +0200 2026"
+ * (rule34.xxx, Gelbooru) and "2016-07-13 14:57:58.370539" in UTC (paheal).
+ */
+export function parseDate(text: string | null | undefined): number | undefined {
+  const value = (text ?? "").trim();
+  if (!value) return undefined;
+  const dapi = value.match(/^\w{3} (\w{3}) (\d{1,2}) (\d\d):(\d\d):(\d\d) ([+-])(\d\d)(\d\d) (\d{4})$/);
+  if (dapi) {
+    const [, mon, day, h, m, sec, sign, oh, om, year] = dapi;
+    const month = MONTHS.indexOf((mon ?? "").toLowerCase());
+    if (month < 0) return undefined;
+    const offset = (Number(oh) * 60 + Number(om)) * (sign === "-" ? -1 : 1);
+    return Date.UTC(Number(year), month, Number(day), Number(h), Number(m), Number(sec)) - offset * 60000;
+  }
+  const plain = value.match(/^(\d{4})-(\d\d)-(\d\d)[ T](\d\d):(\d\d):(\d\d)(?:\.\d+)?(Z|[+-]\d\d:?\d\d)?$/);
+  if (plain) {
+    const [, y, mo, d, h, m, sec, zone] = plain;
+    let time = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(m), Number(sec));
+    if (zone && zone !== "Z") {
+      const z = zone.replace(":", "");
+      const offset = (Number(z.slice(1, 3)) * 60 + Number(z.slice(3, 5))) * (z[0] === "-" ? -1 : 1);
+      time -= offset * 60000;
+    }
+    return time;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
 function splitTags(text: string | null | undefined): string[] {
   return (text ?? "").split(/\s+/).filter(Boolean);
 }
@@ -100,6 +132,7 @@ interface DapiPost {
   tags?: string;
   rating?: string;
   score?: number | string | null;
+  created_at?: string;
 }
 
 function dapiPost(site: SiteId, post: DapiPost): BooruPost | undefined {
@@ -116,7 +149,25 @@ function dapiPost(site: SiteId, post: DapiPost): BooruPost | undefined {
     score: Number(post.score) || 0,
     rating: ratingFromLetter(post.rating),
     isGif: GIF_FILE.test(post.file_url),
+    createdAt: parseDate(post.created_at),
   };
+}
+
+/** rule34.xxx's JSON leaves out the upload date, so it is read as XML. */
+function dapiXmlPosts(xml: string, name: string): DapiPost[] {
+  const text = xml.trim();
+  if (!text) return [];
+  if (text.startsWith("[") || text.startsWith("{")) {
+    const json = JSON.parse(text) as DapiPost[] | { post?: DapiPost[] };
+    return Array.isArray(json) ? json : (json.post ?? []);
+  }
+  if (!text.startsWith("<")) throw new Error(`${name}: ${text.slice(0, 160)}`);
+  const $ = cheerio.load(text, { xmlMode: true });
+  const failure = $("response[success='false']").attr("reason");
+  if (failure) throw new Error(`${name}: ${failure}`);
+  return $("post")
+    .toArray()
+    .map((el) => $(el).attr() as unknown as DapiPost);
 }
 
 function dapiSite(id: "rule34xxx" | "gelbooru", name: string, base: string, gifTags: string[]): Site {
@@ -151,10 +202,12 @@ function dapiSite(id: "rule34xxx" | "gelbooru", name: string, base: string, gifT
       throw new Error(`${name} needs your user ID and API key. Add them in the R34 extension settings.`);
     }
     const auth = `&user_id=${encodeURIComponent(credentials.userId)}&api_key=${encodeURIComponent(credentials.apiKey)}`;
-    const { status, body } = await get(`${base}/index.php?page=dapi&s=post&q=index&json=1&${params}${auth}`);
+    const json1 = id === "rule34xxx" ? "" : "json=1&";
+    const { status, body } = await get(`${base}/index.php?page=dapi&s=post&q=index&${json1}${params}${auth}`);
     if (status === 401 || status === 403) {
       throw new Error(`${name} rejected the user ID or API key. Check them in the R34 extension settings.`);
     }
+    if (id === "rule34xxx") return dapiXmlPosts(body, name);
     const json = parseJson<DapiPost[] | { post?: DapiPost[] }>(body, name);
     if (!json) return [];
     return Array.isArray(json) ? json : (json.post ?? []);
@@ -174,6 +227,7 @@ interface E621Post {
   tags: Record<string, string[]>;
   score: { total: number };
   rating: string;
+  created_at?: string;
 }
 
 function e621Post(post: E621Post): BooruPost | undefined {
@@ -191,6 +245,7 @@ function e621Post(post: E621Post): BooruPost | undefined {
     score: post.score?.total ?? 0,
     rating: ratingFromLetter(post.rating),
     isGif: GIF_FILE.test(post.file.url),
+    createdAt: parseDate(post.created_at),
   };
 }
 
@@ -244,6 +299,7 @@ interface DanbooruPost {
   tag_string_copyright?: string;
   score?: number;
   rating?: string;
+  created_at?: string;
 }
 
 function danbooruPost(post: DanbooruPost): BooruPost | undefined {
@@ -260,6 +316,7 @@ function danbooruPost(post: DanbooruPost): BooruPost | undefined {
     score: post.score ?? 0,
     rating: ratingFromLetter(post.rating),
     isGif: GIF_FILE.test(post.file_url),
+    createdAt: parseDate(post.created_at),
   };
 }
 
@@ -320,6 +377,8 @@ function pahealPosts(xml: string): BooruPost[] {
         score: Number(a.score) || 0,
         rating: ContentRating.ADULT,
         isGif: GIF_FILE.test(a.file_name ?? ""),
+        // Paheal's dates have no time zone; they are UTC.
+        createdAt: parseDate(a.date ? `${a.date}Z` : undefined),
       };
     })
     .filter((p): p is BooruPost => !!p && !!p.id);
