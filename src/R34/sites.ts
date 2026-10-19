@@ -6,7 +6,7 @@ import { getCredentials } from "./settings";
 
 export const PAGE_SIZE = 30;
 
-const USER_AGENT = "R34-Paperback/1.0 (by DepthsTraveler on GitHub)";
+import { USER_AGENT } from "./interceptor";
 const IMAGE_FILE = /\.(jpe?g|png|gif|webp|avif)(\?|$)/i;
 
 export type SortOrder = "new" | "score" | "gif";
